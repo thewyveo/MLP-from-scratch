@@ -1,0 +1,14 @@
+---
+title: "My First Report"
+output: html_document
+---
+```{r}
+he <- 5
+nums <- c(1, 2, 3, 4, 5)
+
+x <- -10:10
+y <- x^2
+
+# plot(x, y)
+# hist()
+```
