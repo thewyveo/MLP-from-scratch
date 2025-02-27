@@ -1,2 +1,2 @@
 # NN-from-scratch
-A basic Neural Network Implementation using only numpy.
+A basic Multi-Layer Perceptron Implementation applying Mushroom data.
