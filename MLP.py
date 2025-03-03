@@ -206,7 +206,7 @@ def run_mushroom_classification(data, hidden_size=8, learning_rate=0.01, epochs=
 
 
 if __name__ == "__main__":
-    with open('processed.data', 'r') as f:
+    with open('processed-mushroom.data', 'r') as f:
         mushroom_data = f.read()
 
     model = run_mushroom_classification(mushroom_data)

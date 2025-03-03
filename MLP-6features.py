@@ -171,7 +171,7 @@ def preprocess_data(data, train_ratio=0.8):
 
     return X_train, y_train, X_test, y_test, X, y
 
-def run_mushroom_classification(data, hidden_size=4, learning_rate=0.01, epochs=10):
+def run_mushroom_classification(data, hidden_size=4, learning_rate=0.01, epochs=15):
     """Run the mushroom classification model"""
     # Preprocess data
     X_train, y_train, X_test, y_test, _, _ = preprocess_data(data)
@@ -201,7 +201,7 @@ def run_mushroom_classification(data, hidden_size=4, learning_rate=0.01, epochs=
 
 
 if __name__ == "__main__":
-    with open('processed.data', 'r') as f:
+    with open('processed-mushroom.data', 'r') as f:
         mushroom_data = f.read()
 
     model = run_mushroom_classification(mushroom_data)
