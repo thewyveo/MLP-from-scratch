@@ -498,7 +498,6 @@ class MLP:
         return {"accuracy": accuracy, "precision": precision, "recall": recall, "f1_score": f1_score}
     
 def preprocess_data(data, train_ratio=0.8):
-    selected_features = ['class', 'odor', 'spore-print-color', 'habitat', 'population', 'cap-shape', 'gill-size']
     """Preprocess mushroom data and split into train/test sets"""
     encoding_dicts = {
         'class': {'e': 0, 'p': 1},
@@ -533,7 +532,7 @@ def preprocess_data(data, train_ratio=0.8):
         y_data.append(1 if features[0] == 'p' else 0)
         
         encoded_features = []
-        for i, feature in enumerate(selected_features[1:]):
+        for i, feature in enumerate(features[1:]):
             feature_key = list(encoding_dicts.keys())[i]
             one_hot = [0] * len(encoding_dicts[feature_key])
             index = encoding_dicts[feature_key].get(feature, -1)
@@ -581,7 +580,7 @@ def run_mushroom_classification(data, hidden_size=8, learning_rate=0.01, epochs=
     return model
 
 if __name__ == "__main__":
-    with open('processed-mushroom.data', 'r') as f:
+    with open('processed.data', 'r') as f:
         mushroom_data = f.read()
 
     X_train, y_train, X_test, y_test, _, _ = preprocess_data(mushroom_data)
