@@ -1,20 +1,99 @@
 import numpy as np
 
-#np.random.seed(42)
+class AdamOptimizer:
+    def __init__(self, learning_rate=0.001, beta1=0.9, beta2=0.999, epsilon=1e-8):
+        """
+        Initialize Adam optimizer
+        
+        Args:
+            learning_rate: Step size for updates
+            beta1: Exponential decay rate for first moment estimates
+            beta2: Exponential decay rate for second moment estimates
+            epsilon: Small constant to prevent division by zero
+        """
+        self.learning_rate = learning_rate
+        self.beta1 = beta1
+        self.beta2 = beta2
+        self.epsilon = epsilon
+        self.m_weights = None  # First moment estimate for weights
+        self.v_weights = None  # Second moment estimate for weights
+        self.m_biases = None   # First moment estimate for biases
+        self.v_biases = None   # Second moment estimate for biases
+        self.t = 0             # Time step
+        
+    def initialize(self, weights, biases):
+        """Initialize moment estimates based on model's weights and biases"""
+        self.m_weights = [np.zeros_like(w) for w in weights]
+        self.v_weights = [np.zeros_like(w) for w in weights]
+        self.m_biases = [np.zeros_like(b) for b in biases]
+        self.v_biases = [np.zeros_like(b) for b in biases]
+        
+    def update(self, weights, biases, weight_gradients, bias_gradients):
+        """
+        Update weights and biases using Adam optimization
+        
+        Args:
+            weights: Current weights
+            biases: Current biases
+            weight_gradients: Gradients for weights
+            bias_gradients: Gradients for biases
+            
+        Returns:
+            Updated weights and biases
+        """
+        if self.m_weights is None:
+            self.initialize(weights, biases)
+            
+        self.t += 1
+        
+        # Update for each layer
+        for i in range(len(weights)):
+            # Update for weights
+            self.m_weights[i] = self.beta1 * self.m_weights[i] + (1 - self.beta1) * weight_gradients[i]
+            self.v_weights[i] = self.beta2 * self.v_weights[i] + (1 - self.beta2) * np.square(weight_gradients[i])
+            
+            # Bias correction
+            m_hat = self.m_weights[i] / (1 - self.beta1 ** self.t)
+            v_hat = self.v_weights[i] / (1 - self.beta2 ** self.t)
+            
+            # Update weights
+            weights[i] += self.learning_rate * m_hat / (np.sqrt(v_hat) + self.epsilon)
+            
+            # Update for biases
+            self.m_biases[i] = self.beta1 * self.m_biases[i] + (1 - self.beta1) * bias_gradients[i]
+            self.v_biases[i] = self.beta2 * self.v_biases[i] + (1 - self.beta2) * np.square(bias_gradients[i])
+            
+            # Bias correction
+            m_hat = self.m_biases[i] / (1 - self.beta1 ** self.t)
+            v_hat = self.v_biases[i] / (1 - self.beta2 ** self.t)
+            
+            # Update biases
+            biases[i] += self.learning_rate * m_hat / (np.sqrt(v_hat) + self.epsilon)
+            
+        return weights, biases
 
+# Modified MLP class with optimizer support
 class MLP:
-    def __init__( self, input_size, hidden_sizes, output_size=1, learning_rate=0.01):
+    def __init__(self, input_size, hidden_sizes, output_size=1, optimizer='sgd', learning_rate=0.01, **optimizer_params):
         self.learning_rate = learning_rate
         self.output_size = output_size
 
         # Xavier initialization
         layer_sizes = [input_size] + hidden_sizes + [output_size]
         self.weights = [
-        np.random.randn(layer_sizes[i], layer_sizes[i + 1])
-        * np.sqrt(1.0 / layer_sizes[i])  # Use 1.0 for sigmoid
-        for i in range(len(layer_sizes) - 1)
-            ]
+            np.random.randn(layer_sizes[i], layer_sizes[i + 1]) 
+            * np.sqrt(1.0 / layer_sizes[i])
+            for i in range(len(layer_sizes) - 1)
+        ]
         self.biases = [np.zeros((1, size)) for size in layer_sizes[1:]]
+        
+        # Set optimizer
+        self.optimizer_name = optimizer.lower()
+        if self.optimizer_name == 'adam':
+            self.optimizer = AdamOptimizer(learning_rate=learning_rate, **optimizer_params)
+        else:
+            # Default to SGD
+            self.optimizer = None
 
     def sigmoid(self, x):
         return 1 / (1 + np.exp(-np.clip(x, -50, 50)))
@@ -40,13 +119,23 @@ class MLP:
                 * self.sigmoid_derivative(self.activations[i])
             )
         deltas.reverse()
-
+        
+        weight_gradients = []
+        bias_gradients = []
+        
         for i in range(len(self.weights)):
-            self.weights[i] += self.activations[i].T.dot(deltas[i]) * self.learning_rate
-            self.biases[i] += (
-                np.sum(deltas[i], axis=0, keepdims=True) * self.learning_rate
-            )
+            weight_gradients.append(self.activations[i].T.dot(deltas[i]))
+            bias_gradients.append(np.sum(deltas[i], axis=0, keepdims=True))
 
+        if self.optimizer_name == 'adam':
+            self.weights, self.biases = self.optimizer.update(
+                self.weights, self.biases, weight_gradients, bias_gradients
+            )
+        else:
+            # Standard SGD
+            for i in range(len(self.weights)):
+                self.weights[i] += weight_gradients[i] * self.learning_rate
+                self.biases[i] += bias_gradients[i] * self.learning_rate
 
     def train(self, X, y, epochs=100, batch_size=16, patience=5):
         """Train the network with mini-batch gradient descent and early stopping"""
@@ -120,12 +209,10 @@ class MLP:
             "recall": recall,
             "f1_score": f1_score,
         }
-
-
+    
 def preprocess_data(data, train_ratio=0.8):
     """
     Preprocesses mushroom data with proper one-hot encoding and normalization.
-    Splits data into train/test sets properly before applying normalization.
     
     Args:
         data: String containing the mushroom dataset
@@ -138,23 +225,23 @@ def preprocess_data(data, train_ratio=0.8):
         "class": {"e": 0, "p": 1},
         "cap-shape": {"b": 0, "c": 1, "x": 2, "f": 3, "k": 4, "s": 5},
         "cap-surface": {"f": 0, "g": 1, "y": 2, "s": 3},
-        "cap-color": {"n": 0, "b": 1, "c": 2, "g": 3, "r": 4, "p": 5, "u": 6, "e": 7, "w": 8, "y": 9,},
+        "cap-color": {"n": 0, "b": 1, "c": 2, "g": 3, "r": 4, "p": 5, "u": 6, "e": 7, "w": 8, "y": 9},
         "bruises": {"t": 0, "f": 1},
-        "odor": {"a": 0, "l": 1, "c": 2, "y": 3, "f": 4, "m": 5, "n": 6, "p": 7, "s": 8,},
+        "odor": {"a": 0, "l": 1, "c": 2, "y": 3, "f": 4, "m": 5, "n": 6, "p": 7, "s": 8},
         "gill-attachment": {"a": 0, "d": 1, "f": 2, "n": 3},
         "gill-spacing": {"c": 0, "w": 1, "d": 2},
         "gill-size": {"b": 0, "n": 1},
-        "gill-color": {"k": 0, "n": 1, "b": 2, "h": 3, "g": 4, "r": 5, "o": 6, "p": 7, "u": 8, "e": 9, "w": 10, "y": 11,},
+        "gill-color": {"k": 0, "n": 1, "b": 2, "h": 3, "g": 4, "r": 5, "o": 6, "p": 7, "u": 8, "e": 9, "w": 10, "y": 11},
         "stalk-shape": {"e": 0, "t": 1},
         "stalk-surface-above-ring": {"f": 0, "y": 1, "k": 2, "s": 3},
         "stalk-surface-below-ring": {"f": 0, "y": 1, "k": 2, "s": 3},
-        "stalk-color-above-ring": {"n": 0, "b": 1, "c": 2, "g": 3,"o": 4, "p": 5, "e": 6, "w": 7, "y": 8,},
-        "stalk-color-below-ring": {"n": 0, "b": 1, "c": 2, "g": 3, "o": 4, "p": 5, "e": 6, "w": 7, "y": 8,},
+        "stalk-color-above-ring": {"n": 0, "b": 1, "c": 2, "g": 3, "o": 4, "p": 5, "e": 6, "w": 7, "y": 8},
+        "stalk-color-below-ring": {"n": 0, "b": 1, "c": 2, "g": 3, "o": 4, "p": 5, "e": 6, "w": 7, "y": 8},
         "veil-type": {"p": 0, "u": 1},
         "veil-color": {"n": 0, "o": 1, "w": 2, "y": 3},
         "ring-number": {"n": 0, "o": 1, "t": 2},
         "ring-type": {"c": 0, "e": 1, "f": 2, "l": 3, "n": 4, "p": 5, "s": 6, "z": 7},
-        "spore-print-color": {"k": 0, "n": 1, "b": 2, "h": 3, "r": 4, "o": 5, "u": 6, "w": 7, "y": 8,},
+        "spore-print-color": {"k": 0, "n": 1, "b": 2, "h": 3, "r": 4, "o": 5, "u": 6, "w": 7, "y": 8},
         "population": {"a": 0, "c": 1, "n": 2, "s": 3, "v": 4, "y": 5},
         "habitat": {"g": 0, "l": 1, "m": 2, "p": 3, "u": 4, "w": 5, "d": 6},
     }
@@ -168,7 +255,7 @@ def preprocess_data(data, train_ratio=0.8):
 
         encoded_features = []
         for i, feature in enumerate(features[1:]):
-            feature_key = list(encoding_dicts.keys())[i]
+            feature_key = list(encoding_dicts.keys())[i + 1]  # Skip the class key
             one_hot = [0] * len(encoding_dicts[feature_key])
             index = encoding_dicts[feature_key].get(feature, -1)
             if index != -1:
@@ -181,7 +268,7 @@ def preprocess_data(data, train_ratio=0.8):
     X = np.array(X_data, dtype=float)
     y = np.array(y_data, dtype=float).reshape(-1, 1)
 
-    # First split the data (before normalization to prevent data leakage)
+    # Split data
     n_samples = len(X)
     indices = np.random.permutation(n_samples)
     train_size = int(n_samples * train_ratio)
@@ -191,41 +278,25 @@ def preprocess_data(data, train_ratio=0.8):
     X_train, y_train = X[train_indices], y[train_indices]
     X_test, y_test = X[test_indices], y[test_indices]
     
-    # Now normalize using only training data statistics
-    # For one-hot encoded features, you might consider two approaches:
-    
-    # Option 1: Skip normalization for binary features
-    # This keeps one-hot encoded features as 0s and 1s
-    # You'd need to identify which columns are one-hot encodings
-    
-    # Option 2: Normalize everything (used here)
+    # Normalize using training data statistics
     mean = np.mean(X_train, axis=0)
     std = np.std(X_train, axis=0)
+    std[std < 1e-5] = 1  # Prevent division by zero
     
-    # Handle features with zero or near-zero variance
-    # Replace small std values with 1 to avoid division issues
-    std[std < 1e-5] = 1
-    
-    # Apply normalization using training set statistics
     X_train_normalized = (X_train - mean) / std
     X_test_normalized = (X_test - mean) / std
     
-    # You could experiment with both normalized and raw versions
-    # to see which performs better for your model
-    
     return X_train_normalized, y_train, X_test_normalized, y_test, X, y
 
-    # Alternative return if you want to experiment with unnormalized data:
-    # return X_train, y_train, X_test, y_test, X, y
-
-
-def run_mushroom_classification(data, hidden_sizes=[32, 16], epochs=10, batch_size=16):
-    """Run the mushroom classification model with batch training"""
+def run_mushroom_classification(data, hidden_sizes=[32, 16], epochs=10, batch_size=16, 
+                               optimizer='sgd', learning_rate=0.01, **optimizer_params):
+    """Run the mushroom classification model with specified optimizer"""
     X_train, y_train, X_test, y_test, _, _ = preprocess_data(data)
     input_size = X_train.shape[1]
 
-    model = MLP(input_size, hidden_sizes)
-    print("Training model...")
+    model = MLP(input_size, hidden_sizes, optimizer=optimizer, 
+                learning_rate=learning_rate, **optimizer_params)
+    print(f"Training model with {optimizer} optimizer...")
     model.train(X_train, y_train, epochs=epochs, batch_size=batch_size)
 
     metrics = model.evaluate(X_test, y_test)
@@ -241,4 +312,13 @@ def run_mushroom_classification(data, hidden_sizes=[32, 16], epochs=10, batch_si
 if __name__ == "__main__":
     with open("processed-mushroom.data", "r") as file:
         data = file.read()
-    run_mushroom_classification(data)
+        
+    # Example usage with Adam optimizer
+    run_mushroom_classification(
+        data, 
+        optimizer='adam', 
+        learning_rate=0.001, 
+        beta1=0.9, 
+        beta2=0.999, 
+        epsilon=1e-8
+    )
