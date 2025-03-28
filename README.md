@@ -2,6 +2,8 @@
 
 #### Made by Mehmet Fatih Akçaoğlu and Kayra Özdemir.
 
+Final model is made for Diabetes prediction task.
+
 Diabetes folder:
 - diabetes-processed.csv: Preprocessed diabetes dataset
 - MLP-diabetes-Final.py: Diabetes predictor MLP (implemented using only NumPy)
