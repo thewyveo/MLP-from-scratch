@@ -426,7 +426,7 @@ def create_baseline_model(X_train, y_train, X_test, y_test):
     return metrics
 
 if __name__ == "__main__":
-    with open("processed-mushroom.data", "r") as file:
+    with open("mushroom/processed-mushroom.data", "r") as file:
         data = file.read()
      
     X_train, y_train, X_test, y_test, X_cross_val, y_cross_val, _, _ = preprocess_data(data)
